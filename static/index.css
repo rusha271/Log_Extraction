@@ -2,9 +2,12 @@ body {
     font-family: Arial, sans-serif;
     margin: 20px;
     padding: 0;
-    background-color: #f4f4f9;
+    background-image: url('/static/background.png');
+    background-size: cover;
+    background-position: center;
     color: #333;
 }
+
 
 h1 {
     text-align: center;
@@ -16,10 +19,14 @@ form {
     max-width: 400px;
     margin: 0 auto 20px auto;
     padding: 20px;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.2); /* Semi-transparent white */
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px); /* Applies the blur effect */
+    -webkit-backdrop-filter: blur(10px); /* Safari compatibility */
+    border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle border for contrast */
 }
+
 
 .row {
     display: flex;

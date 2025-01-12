@@ -183,3 +183,12 @@ $(document).ready(function() {
         }
     });
 });
+
+document.getElementById('type').addEventListener('change', function() {
+    const customLogTypeContainer = document.getElementById('customLogTypeContainer');
+    if (this.value === 'custom') {
+        customLogTypeContainer.style.display = 'block';
+    } else {
+        customLogTypeContainer.style.display = 'none';
+    }
+});
