@@ -125,7 +125,7 @@ class OptimizedLogExtractor(LogExtractor):
         try:
             with open(file_path, "r", encoding="utf-8") as file:
                 data = file.readlines()
-
+                
             num_chunks = multiprocessing.cpu_count()
             chunk_size = max(len(data) // num_chunks, 1)
             chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
