@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+venv/
+.env
+__pycache__
+
+# Flask
+instance/
+migrations/
+uploads/
+
+# Custom data folder
+DATA/
