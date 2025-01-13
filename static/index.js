@@ -35,11 +35,17 @@ function validateIndices(timeIndex, requestIndex) {
     return { valid: true };
 }
 
-function validateDateRange(startTime, endTime) {
+function validateDateRange(startTime, endTime, inputType) {
     if (!startTime || !endTime) {
         return { valid: false, message: 'Please enter both start and end times.' };
     }
 
+    if (inputType === 'time') {
+        // For time-only inputs, no need to validate dates
+        return { valid: true };
+    }
+
+    // For datetime inputs, validate the full date and time
     const start = new Date(startTime);
     const end = new Date(endTime);
 
@@ -54,15 +60,22 @@ function validateDateRange(startTime, endTime) {
     return { valid: true };
 }
 
-function formatTime(dateString) {
+function formatTime(dateString, inputType) {
     const date = new Date(dateString);
-    return `${String(date.getHours()).padStart(2, '0')}_${String(date.getMinutes()).padStart(2, '0')}_${String(date.getSeconds()).padStart(2, '0')}`;
+    if (inputType === 'time') {
+        // Extract only the time portion
+        return `${String(date.getHours()).padStart(2, '0')}_${String(date.getMinutes()).padStart(2, '0')}_${String(date.getSeconds()).padStart(2, '0')}`;
+    } else {
+        // Include both date and time
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}_${String(date.getMinutes()).padStart(2, '0')}_${String(date.getSeconds()).padStart(2, '0')}`;
+    }
 }
 
 document.getElementById("logForm")?.addEventListener("submit", async function (event) {
     event.preventDefault();
     
     // Get form values
+    const inputType = document.getElementById('inputTypeSelector').value;
     const formElements = {
         startTime: document.getElementById("starttime").value,
         endTime: document.getElementById("endtime").value,
@@ -71,11 +84,11 @@ document.getElementById("logForm")?.addEventListener("submit", async function (e
         requestIndex: document.getElementById("requestIndex")?.value || '4',
         sepratorType: document.getElementById("sepratorType").value,
         fileInput: document.getElementById("fileInput"),
-        searchText:document.getElementById("searchText").value || " "
+        searchText: document.getElementById("searchText").value || " "
     };
 
-    // Validate date range
-    const dateValidation = validateDateRange(formElements.startTime, formElements.endTime);
+    // Validate date range based on input type
+    const dateValidation = validateDateRange(formElements.startTime, formElements.endTime, inputType);
     if (!dateValidation.valid) {
         alert(dateValidation.message);
         return;
@@ -97,13 +110,13 @@ document.getElementById("logForm")?.addEventListener("submit", async function (e
     // Create form data
     const formData = new FormData();
     formData.append("file", formElements.fileInput.files[0]);
-    formData.append("startTime", formElements.startTime);
-    formData.append("endTime", formElements.endTime);
+    formData.append("startTime", inputType === 'time' ? formElements.startTime.split('T')[1] : formElements.startTime);
+    formData.append("endTime", inputType === 'time' ? formElements.endTime.split('T')[1] : formElements.endTime);
     formData.append("logType", formElements.logType);
     formData.append("timeIndex", formElements.timeIndex);
     formData.append("requestIndex", formElements.requestIndex);
     formData.append("sepratorType", formElements.sepratorType);
-    formData.append("searchText",formElements.searchText);
+    formData.append("searchText", formElements.searchText);
 
     const loadingSpinner = document.getElementById("loadingSpinner");
     
@@ -129,8 +142,8 @@ document.getElementById("logForm")?.addEventListener("submit", async function (e
         }
 
         // Create download link
-        const startFormatted = formatTime(formElements.startTime);
-        const endFormatted = formatTime(formElements.endTime);
+        const startFormatted = formatTime(formElements.startTime, inputType);
+        const endFormatted = formatTime(formElements.endTime, inputType);
         const fileName = `log_${startFormatted}_${endFormatted}_${formElements.logType}.log`;
 
         const link = document.createElement("a");

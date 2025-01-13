@@ -9,24 +9,42 @@ logger = logging.getLogger(__name__)
 class LogExtractor:
     def __init__(self):
         self.timestamp_formats = [
-            "%Y%m%d%H%M%S",
-            "%Y-%m-%dT%H:%M:%S",
-            "%Y/%m/%d %H:%M:%S",
-            "%d-%m-%Y %H:%M:%S",
-            "%H:%M:%S",
+            "%Y%m%d%H%M%S",  # Full timestamp
+            "%Y-%m-%dT%H:%M:%S",  # ISO datetime
+            "%Y/%m/%d %H:%M:%S",  # Date with slash separator
+            "%d-%m-%Y %H:%M:%S",  # Day first date
+            "%H:%M:%S",  # Time-only
         ]
 
     def normalize_timestamp(self, timestamp_str):
+        if not timestamp_str:
+            return None
+
+        # Handle full timestamp (YYYYMMDDHHMMSS)
+        if len(timestamp_str) == 14:
+            try:
+                parsed_dt = datetime.strptime(timestamp_str, "%Y%m%d%H%M%S")
+                return parsed_dt.strftime("%Y%m%d%H%M%S")
+            except ValueError:
+                pass
+
+        # Handle time-only (HHMMSS)
+        if len(timestamp_str) == 6:
+            try:
+                parsed_time = datetime.strptime(timestamp_str, "%H%M%S")
+                return parsed_time.strftime("%H%M%S")
+            except ValueError:
+                pass
+
+        # Handle other formats
         for fmt in self.timestamp_formats:
             try:
-                if len(timestamp_str) == 6:
-                    dt = datetime.strptime(timestamp_str, fmt)
-                    return dt.strftime("%H%M%S")
-                else:
-                    dt = datetime.strptime(timestamp_str, fmt)
-                    return dt.strftime("%Y%m%d%H%M%S")
+                parsed_dt = datetime.strptime(timestamp_str, fmt)
+                return parsed_dt.strftime("%Y%m%d%H%M%S")
             except ValueError:
                 continue
+
+        logger.debug(f"Failed to normalize timestamp '{timestamp_str}'")
         return None
 
     def _extract_data(self, data, start_dt=None, end_dt=None, log_type=None, start_index=None, seprator_type=None,
@@ -36,25 +54,9 @@ class LogExtractor:
             logger.warning("No data to process.")
             return extracted_data
 
-        start_timestamp = None
-        end_timestamp = None
-
-        # Handle start and end datetime normalization
-        if start_dt:
-            if isinstance(start_dt, datetime):
-                start_timestamp = start_dt.strftime("%Y%m%d%H%M%S")
-            elif isinstance(start_dt, time):
-                start_timestamp = start_dt.strftime("%H%M%S")
-            else:
-                start_timestamp = self.normalize_timestamp(start_dt)
-
-        if end_dt:
-            if isinstance(end_dt, datetime):
-                end_timestamp = end_dt.strftime("%Y%m%d%H%M%S")
-            elif isinstance(end_dt, time):
-                end_timestamp = end_dt.strftime("%H%M%S")
-            else:
-                end_timestamp = self.normalize_timestamp(end_dt)
+        # Normalize start and end timestamps
+        start_timestamp = self._normalize_datetime(start_dt) if start_dt else None
+        end_timestamp = self._normalize_datetime(end_dt) if end_dt else None
 
         # Process lines in the data
         for line in data:
@@ -114,6 +116,14 @@ class LogExtractor:
                 continue
 
         return extracted_data
+
+    def _normalize_datetime(self, dt):
+        if isinstance(dt, datetime):
+            return dt.strftime("%Y%m%d%H%M%S")
+        elif isinstance(dt, time):
+            return dt.strftime("%H%M%S")
+        else:
+            return self.normalize_timestamp(dt)
 
 
 class OptimizedLogExtractor(LogExtractor):
