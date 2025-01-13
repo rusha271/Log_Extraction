@@ -14,10 +14,15 @@ my_flask_app/
 ├── app/
 │   ├── __init__.py
 │   ├── routes.py
-│   ├── models.py
+│   ├── Model/
+    │   ├── __init__.py
+│   │   └── model_log.py     
 │   ├── templates/
 │   │   ├── index.html
 │   │   └── base.html
+    ├── Controller/
+    │   ├── __init__.py
+│   │   └── fetch_logs_controller.py
 │   └── static/
 │       ├── css/
 │       ├── js/
