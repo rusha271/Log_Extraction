@@ -12,8 +12,7 @@ init_routes(app)
 def home():
     return render_template('index.html')
 
-# Run the app using Waitress (for Windows)
+# Run the app using Flask's built-in development server
 if __name__ == '__main__':
-    from waitress import serve
-    print("Starting Waitress server...")
-    serve(app, host="127.0.0.1", port=8080)
+    print("Starting Flask development server...")
+    app.run()
