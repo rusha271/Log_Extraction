@@ -1,6 +1,6 @@
 let fileContent = null;
 
-async function readFileInChunks(fileInput, onChunkRead, chunkSize = 10 * 1024 * 1024) { // 10 MB chunks
+async function readFileInChunks(fileInput, onChunkRead, chunkSize = 1024 * 1024) {
     return new Promise((resolve, reject) => {
         if (fileInput?.files.length > 0) {
             const file = fileInput.files[0];

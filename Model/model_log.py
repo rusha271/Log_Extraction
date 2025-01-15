@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 sessions = {}
 session_lock = threading.Lock()
 
-CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB chunks
+CHUNK_SIZE = 1024 * 1024  # 10 MB chunks
 
 class LogExtractor:
     def __init__(self):
