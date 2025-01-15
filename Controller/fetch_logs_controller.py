@@ -3,79 +3,124 @@ import tempfile
 import logging
 from datetime import datetime
 from flask import request, Response
+import uuid
+import re  # Added for regex operations
 from Model.model_log import OptimizedLogExtractor
+import threading
 
 logger = logging.getLogger(__name__)
+
+# Define chunk size for reading files
+CHUNK_SIZE = 10 * 1024 * 1024  # 10 MB chunks
+
+# Global variables to store session data
+sessions = {}
+session_lock = threading.Lock()
 
 def init_routes(app):
     @app.route('/fetch_logs', methods=['POST'])
     def fetch_logs():
+        global sessions, session_lock
+
         try:
-            file = request.files.get('file')
-            if not file or not file.filename:
-                return "No file selected", 400
+            step = request.form.get('step')
+            if step not in ['metadata', 'chunk', 'finalize']:
+                return "Invalid 'step' parameter.", 400
 
-            # Extract parameters
-            start_time = request.form.get('startTime')
-            end_time = request.form.get('endTime')
-            log_type = request.form.get('logType', 'all')
-            start_index = request.form.get('startIndex')
-            seprator_type = request.form.get('sepratorType')
-            index_request = request.form.get('indexRequest')
-            search_Text = request.form.get('searchText')
+            if step == 'metadata':
+                start_index = request.form.get("startIndex")
+                index_request = request.form.get("indexRequest")
+                try:
+                    start_index = int(start_index) - 1 if start_index else None
+                    index_request = int(index_request) - 1 if index_request else None
+                except ValueError:
+                    return "Index values must be integers.", 400
 
-            # Parse inputs dynamically
-            start_index = int(start_index) - 1 if start_index else None
-            index_request = int(index_request) - 1 if index_request else None
+                metadata = {
+                    "start_time": request.form.get("startTime"),
+                    "end_time": request.form.get("endTime"),
+                    "log_type": request.form.get("logType", "all"),
+                    "start_index": start_index,
+                    "separator_type": request.form.get("separatorType"),
+                    "index_request": index_request,
+                    "search_text": request.form.get("searchText"),
+                }
 
-            start_dt = None
-            end_dt = None
-            if start_time:
-                start_dt = start_time
-            if end_time:
-                end_dt = end_time
+                session_id = str(uuid.uuid4())
+                temp_file_path = tempfile.NamedTemporaryFile(delete=False).name
+                output_temp_file_path = tempfile.NamedTemporaryFile(delete=False).name
 
-            # Save file to temp
-            with tempfile.NamedTemporaryFile(delete=False) as temp_file:
-                file.save(temp_file.name)
-                temp_file_path = temp_file.name
+                with session_lock:
+                    sessions[session_id] = {
+                        'metadata': metadata,
+                        'temp_file_path': temp_file_path,
+                        'output_temp_file_path': output_temp_file_path,
+                        'file_size_received': 0,
+                    }
 
-            output_temp_file = tempfile.NamedTemporaryFile(delete=False)
-            output_temp_file_path = output_temp_file.name
-            output_temp_file.close()
+                logger.info(f"Metadata received for session {session_id}: {metadata}")
+                return session_id, 200
 
-            # Process logs
-            log_extractor = OptimizedLogExtractor()
-            log_extractor.extract_and_save_data(
-                file_path=temp_file_path,
-                output_file=output_temp_file_path,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                log_type=log_type,
-                start_index=start_index,
-                seprator_type=seprator_type,
-                index_request=index_request,
-                search_Text=search_Text
-            )
+            if step == 'chunk':
+                session_id = request.form.get('sessionID')
+                if not session_id or session_id not in sessions:
+                    return "Invalid 'sessionID'.", 400
 
-            # Read filtered logs
-            with open(output_temp_file_path, 'r', encoding='utf-8') as output_file:
-                filtered_logs = output_file.read()
-                if not filtered_logs:
-                    return "No logs match the criteria.", 200
+                file_chunk = request.files.get("fileChunk")
+                if not file_chunk:
+                    return "Missing 'fileChunk'.", 400
 
-                return Response(
-                    filtered_logs,
-                    mimetype='text/plain',
-                    headers={'Content-Disposition': 'attachment; filename=filtered_logs.log'}
-                )
+                with open(sessions[session_id]['temp_file_path'], "ab") as temp_file:
+                    temp_file.seek(int(request.form.get("offset", 0)))
+                    temp_file.write(file_chunk.read())
+
+                return "Chunk received.", 200
+
+            if step == 'finalize':
+                session_id = request.form.get('sessionID')
+                if not session_id or session_id not in sessions:
+                    return "Invalid 'sessionID'.", 400
+
+                session_data = sessions.pop(session_id, None)
+                if not session_data:
+                    return "Session data not found.", 400
+
+                log_extractor = OptimizedLogExtractor()
+
+                try:
+                    with open(session_data['temp_file_path'], "rb") as input_file:
+                        log_extractor.extract_and_save_data(
+                            input_file=input_file,
+                            output_file=session_data['output_temp_file_path'],
+                            start_dt=session_data['metadata']["start_time"],
+                            end_dt=session_data['metadata']["end_time"],
+                            log_type=session_data['metadata']["log_type"],
+                            start_index=session_data['metadata']["start_index"],
+                            separator_type=session_data['metadata']["separator_type"],
+                            index_request=session_data['metadata']["index_request"],
+                            search_Text=session_data['metadata']["search_text"],
+                        )
+
+                    with open(session_data['output_temp_file_path'], "r", encoding="utf-8") as output_file:
+                        logs = output_file.read()
+                        if not logs:
+                            return "No logs match the criteria.", 200
+
+                    return Response(
+                        logs,
+                        mimetype='text/plain',
+                        headers={'Content-Disposition': 'attachment; filename=filtered_logs.log'}
+                    )
+
+                finally:
+                    # Cleanup temp files
+                    for path in [session_data['temp_file_path'], session_data['output_temp_file_path']]:
+                        if os.path.exists(path):
+                            try:
+                                os.remove(path)
+                            except Exception as e:
+                                logger.error(f"Error removing temporary file {path}: {e}")
 
         except Exception as e:
             logger.error(f"Error in fetch_logs: {e}", exc_info=True)
             return "Server error occurred.", 500
-
-        finally:
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
-            if os.path.exists(output_temp_file_path):
-                os.remove(output_temp_file_path)
