@@ -2,20 +2,19 @@ body {
     font-family: Arial, sans-serif;
     margin: 20px;
     padding: 0;
-    background-image: url('/static/back.png');
-    background-size: cover;
-    background-position: center;
-    color: #333;
+    color: #1e1d1d;
+    background-color: #f0f0f0; /* Fallback background color */
 }
-
 
 h1 {
     text-align: center;
-    color: #fff ;
+    color: #099e3d;
 }
+
 .container {
     margin: 10px;
 }
+
 form {
     max-width: 400px;
     margin: 0 auto 20px auto;
@@ -23,32 +22,30 @@ form {
     background: rgba(255, 255, 255, 0.2); /* Semi-transparent white */
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    backdrop-filter: blur(10px); /* Applies the blur effect */
+    backdrop-filter: blur(10px); /* Blur effect */
     -webkit-backdrop-filter: blur(10px); /* Safari compatibility */
-    border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle border for contrast */
+    border: 1px solid rgba(255, 255, 255, 0.3); /* Subtle border */
+    background-color: #00377B; /* Fallback for non-supporting browsers */
 }
-
 
 .row {
     display: flex;
     align-items: center;
     margin-bottom: 10px;
 }
+
 .row label {
-    margin-right: 10px;
-    align-self: center;
-}
-.row input[type="text"] {
+    color: aliceblue;
     margin-right: 10px;
 }
+
 .small-input {
     width: 30px;
     text-align: center;
-    display: flex;
 }
 
-
 label {
+    color: aliceblue;
     display: block;
     margin-bottom: 5px;
 }
@@ -62,15 +59,20 @@ input, select, button {
     box-sizing: border-box;
 }
 
-button {
-    background-color: #007bff;
-    color: white;
-    border: none;
-    cursor: pointer;
+.export-button {
+    margin-top: 20px;
 }
 
-button:hover {
-    background-color: #0056b3;
+.button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.button-row button {
+    flex: 1;
+    margin: 0;
+    padding: 10px;
 }
 
 #logDetails {
@@ -81,7 +83,6 @@ button:hover {
     border-radius: 8px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
-
 
 .spinner {
     display: none;
@@ -97,4 +98,39 @@ button:hover {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+.log-type-cell {
+    padding: 4px 8px;
+    border-radius: 4px;
+    color: white;
+    text-align: center;
+}
+button {
+    padding: 8px 16px;
+    margin: 5px;
+    cursor: pointer;
+    background-color: #007bff;
+    color: white;
+    border: none;
+    border-radius: 4px;
+}
+button:hover {
+    background-color: #417585;
+}
+#gridContainer {
+    margin-top: 20px;
+    height: 600px;
+    width: 100%;
+}
+
+.toolbar-select {
+    padding: 4px;
+    margin: 0 5px;
+    border-radius: 4px;
+}
+
+.toolbar input {
+    border-radius: 4px;
+    border: 1px solid #ccc;
 }

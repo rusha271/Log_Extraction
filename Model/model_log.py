@@ -1,19 +1,10 @@
-import os
 import re
+from datetime import datetime, time
 import logging
-import tempfile
-import uuid
-import threading
-from datetime import datetime
-from flask import request, Response
+import multiprocessing
 
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# Global variables to store session data
-sessions = {}
-session_lock = threading.Lock()
-
-CHUNK_SIZE = 1024 * 1024  # 10 MB chunks
 
 class LogExtractor:
     def __init__(self):
@@ -56,123 +47,112 @@ class LogExtractor:
         logger.debug(f"Failed to normalize timestamp '{timestamp_str}'")
         return None
 
-    def _extract_data(self, line, start_dt=None, end_dt=None, log_type=None, start_index=None, separator_type=None, index_request=None, search_Text=None):
-        try:
-            if not line.strip():
-                logger.debug("Skipping empty or whitespace line.")
-                return None, True
+    def _extract_data(self, data, start_dt=None, end_dt=None, log_type=None, start_index=None, seprator_type=None,
+                      index_request=None, search_Text=None):
+        extracted_data = []
+        if not data:
+            logger.warning("No data to process.")
+            return extracted_data
 
-            # Split the line using the separator
-            parts = re.split(re.escape(separator_type), line.strip()) if separator_type else [line.strip()]
-            logger.debug(f"Split parts: {parts}")
+        # Normalize start and end timestamps
+        start_timestamp = self._normalize_datetime(start_dt) if start_dt else None
+        end_timestamp = self._normalize_datetime(end_dt) if end_dt else None
 
-            # Validate parts
-            if not parts:
-                logger.debug(f"Skipping malformed line: {line.strip()} (No parts found)")
-                return None, True
+        # Process lines in the data
+        for line in data:
+            try:
+                if not line.strip():
+                    logger.debug("Skipping empty or whitespace line.")
+                    continue
 
-            # Extract timestamp using start_index
-            timestamp_str = None
-            if start_index is not None:
-                if -len(parts) <= start_index < len(parts):
-                    timestamp_str = parts[start_index]
-                else:
-                    logger.debug(f"Invalid start_index: {start_index} for line: {line.strip()}")
-                    return None, True
-            else:
-                logger.debug("No start_index provided.")
-                return None, True
+                parts = re.split(re.escape(seprator_type), line.strip())
 
-            if not timestamp_str:
-                logger.debug(f"No valid timestamp found in line: {line.strip()}")
-                return None, True
+                if not parts:
+                    logger.debug(f"Skipping malformed line: {line.strip()} (No parts found)")
+                    continue
 
-            normalized_timestamp = self.normalize_timestamp(timestamp_str)
-            if not normalized_timestamp:
-                logger.debug(f"Invalid timestamp format in line: {line.strip()}")
-                return None, True
+                # Dynamically find the timestamp and log type based on content
+                timestamp_str = None
+                req_res = None
 
-            # Convert start_dt and end_dt to normalized format
-            if start_dt:
-                start_dt = self.normalize_timestamp(start_dt)
-            if end_dt:
-                end_dt = self.normalize_timestamp(end_dt)
+                for i, part in enumerate(parts):
+                    if start_index is not None and i == start_index:
+                        timestamp_str = part
+                    elif index_request is not None and i == index_request:
+                        req_res = part
+                    elif start_index is None and self.normalize_timestamp(part):
+                        timestamp_str = part
+                    elif index_request is None and log_type != "all" and log_type in part:
+                        req_res = part
 
-            # Check timestamp range
-            if start_dt and normalized_timestamp < start_dt:
-                logger.debug(f"Skipping line: timestamp {normalized_timestamp} before start_dt {start_dt}")
-                return None, True
-            if end_dt and normalized_timestamp > end_dt:
-                logger.debug(f"Stopping processing: timestamp {normalized_timestamp} after end_dt {end_dt}")
-                return None, False  # Stop processing
+                if not timestamp_str:
+                    logger.debug(f"No valid timestamp found in line: {line.strip()}")
+                    continue
 
-            # Check log type using index_request
-            if log_type and log_type.lower() != "all":
-                if index_request is not None:
-                    if -len(parts) <= index_request < len(parts):
-                        if parts[index_request].strip() != log_type:
-                            logger.debug(f"Log type '{log_type}' not matched.")
-                            return None, True
+                normalized_timestamp = self.normalize_timestamp(timestamp_str)
+
+                if not normalized_timestamp:
+                    logger.debug(f"Invalid timestamp format in line: {line.strip()}")
+                    continue
+
+                # Skip if timestamp is outside the specified range
+                if start_timestamp and normalized_timestamp < start_timestamp:
+                    continue
+                if end_timestamp and normalized_timestamp > end_timestamp:
+                    continue
+
+                # Check log type and search text
+                if (log_type == "all" or (req_res and log_type in req_res)):
+                    if search_Text:
+                        # Only append the line if it contains the searchText
+                        if search_Text in line:
+                            extracted_data.append(line)
                     else:
-                        logger.debug(f"Invalid index_request: {index_request} for line: {line.strip()}")
-                        return None, True
-                else:
-                    logger.debug("No index_request provided.")
-                    return None, True
+                        # If no searchText is provided, append the line
+                        extracted_data.append(line)
 
-            # Check search text
-            if search_Text and search_Text not in line:
-                logger.debug(f"Search text '{search_Text}' not found in line.")
-                return None, True
+            except Exception as e:
+                logger.error(f"Unexpected error processing line: {line.strip()}", exc_info=True)
+                continue
 
-            return (line if line.endswith('\n') else line + '\n'), True
+        return extracted_data
 
-        except Exception as e:
-            logger.error(f"Error processing line: {line.strip()}", exc_info=True)
-            return None, True
+    def _normalize_datetime(self, dt):
+        if isinstance(dt, datetime):
+            return dt.strftime("%Y%m%d%H%M%S")
+        elif isinstance(dt, time):
+            return dt.strftime("%H%M%S")
+        else:
+            return self.normalize_timestamp(dt)
+
 
 class OptimizedLogExtractor(LogExtractor):
-    def extract_and_save_data(self, input_file, output_file, start_dt=None, end_dt=None, log_type=None, start_index=None, separator_type=None, index_request=None, search_Text=None):
+    def __init__(self):
+        super().__init__()
+
+    def extract_and_save_data(self, file_path, output_file, start_dt=None, end_dt=None, log_type=None, start_index=None, 
+                              seprator_type=None, index_request=None, search_Text=None):
         try:
-            logger.info(f"""
-                Processing with parameters:
-                start_dt: {start_dt}
-                end_dt: {end_dt}
-                log_type: {log_type}
-                start_index: {start_index}
-                separator_type: {separator_type}
-                index_request: {index_request}
-                search_Text: {search_Text}
-            """)
+            with open(file_path, "r", encoding="utf-8") as file:
+                data = file.readlines()
+                
+            num_chunks = multiprocessing.cpu_count()
+            chunk_size = max(len(data) // num_chunks, 1)
+            chunks = [data[i:i + chunk_size] for i in range(0, len(data), chunk_size)]
 
-            with open(output_file, "w", encoding="utf-8") as outfile:
-                buffer = ""
-                while True:
-                    chunk = input_file.read(CHUNK_SIZE)
-                    if not chunk:
-                        break
+            with multiprocessing.Pool(processes=num_chunks) as pool:
+                results = pool.starmap(
+                    self._extract_data,
+                    [(chunk, start_dt, end_dt, log_type, start_index, seprator_type, index_request, search_Text) for chunk in chunks]
+                )
 
-                    if isinstance(chunk, bytes):
-                        chunk = chunk.decode("utf-8")
+            extracted_data = [item for sublist in results for item in sublist]
 
-                    buffer += chunk
-                    lines = buffer.splitlines(keepends=True)
-                    buffer = lines[-1] if lines else ""
+            with open(output_file, "w", encoding="utf-8") as out_file:
+                out_file.writelines(extracted_data)
 
-                    for line in lines[:-1]:
-                        filtered_line, continue_processing = self._extract_data(
-                            line, start_dt, end_dt, log_type, start_index, separator_type, index_request, search_Text
-                        )
-                        if filtered_line:
-                            outfile.write(filtered_line)
-                        if not continue_processing:
-                            break  # Exit the loop if timestamp exceeds end_dt
-
-                    if not continue_processing:
-                        break  # Exit the chunk reading loop
-
-            logger.info("Processing complete.")
+            return extracted_data
 
         except Exception as e:
-            logger.error(f"Error in extract_and_save_data: {e}", exc_info=True)
+            logger.error(f"Error in extract_and_save_data: {str(e)}", exc_info=True)
             raise
