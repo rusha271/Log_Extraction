@@ -22,8 +22,8 @@
 
 
 
-// Initial Declaration 
-let fileContent = null;
+// Initial Declaration let fileContent = null;
+/*
 let gridApi;  
 
 // 🤝Theme definitions
@@ -235,11 +235,12 @@ function parseLogEntries(logData, timeIndex, requestIndex) {
     if (currentEntry) entries.push(currentEntry);
     return entries;
 }
+*/
 
 
+// ⭐ The async Function make promise that it will return the whole file 
 
-// ⭐ The async Function make promise that it will return the value here it is chunked File
-
+/*
 async function readFile(fileInput) {
     return new Promise((resolve, reject) => {
         if (fileInput?.files.length > 0) {
@@ -255,14 +256,78 @@ async function readFile(fileInput) {
         }
     });
 }
+*/
 
+/*
+// ⭐ The async Function make promise that it will return the file into chunks 
+async function readFileInChunks(fileInput, onChunkRead, chunkSize = 1024 * 1024) {
+    return new Promise((resolve, reject) => {
+        if (!fileInput?.files?.length) return reject("No file selected");
 
+        const file = fileInput.files[0];
+        let offset = 0;
+        let leftover = '';
+        const reader = new FileReader();
+        const decoder = new TextDecoder('utf-8');
+        
+        // Regex to identify valid log line starts (14-digit timestamp)
+        const LOG_START_REGEX = /^\d{14}\|/;
 
+        reader.onload = async (e) => {
+            try {
+                const chunkString = decoder.decode(e.target.result);
+                const combinedChunk = leftover + chunkString;
+                const lines = combinedChunk.split(/\r?\n/);
+                
+                // Find last valid line that starts a new log entry
+                let splitIndex = lines.length;
+                for (let i = lines.length - 1; i >= 0; i--) {
+                    if (LOG_START_REGEX.test(lines[i])) {
+                        splitIndex = i;
+                        break;
+                    }
+                }
 
+                let processedChunk = '';
+                if (splitIndex < lines.length) {
+                    processedChunk = lines.slice(0, splitIndex).join('\n');
+                    leftover = lines.slice(splitIndex).join('\n');
+                } else {
+                    leftover = combinedChunk;
+                }
+
+                if (processedChunk) {
+                    await onChunkRead(processedChunk, offset, file.size);
+                    offset += processedChunk.length;
+                }
+
+                if (offset >= file.size) {
+                    if (leftover) await onChunkRead(leftover, offset, file.size);
+                    resolve();
+                } else {
+                    readNextChunk();
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+
+        reader.onerror = () => reject("File read error");
+
+        function readNextChunk() {
+            const slice = file.slice(offset, offset + chunkSize);
+            reader.readAsArrayBuffer(slice);
+        }
+
+        readNextChunk();
+    });
+}
+*/
 
 //🤖 In this function this wait until my other function doesn't response it for Viewing Log Table in the HTML Page
 // This will trigger until i click the button for showing the logs 
 
+/*
 async function tableShow(logData) {
     const logForm = document.getElementById("logForm");
     if (!logForm) return;
@@ -404,7 +469,7 @@ async function tableShow(logData) {
     document.getElementById('searchBox').addEventListener('input', function(e) {
         gridApi.setQuickFilter(e.target.value);
     });
-}
+}*/
 
 
 
@@ -425,132 +490,111 @@ async function tableShow(logData) {
 
 // This will send the data from Frontend to backend using POST method 
 // 🤖💻 Backbone of sending data 
+
+/*
 async function handleLogFormSubmit(event) {
-    event.preventDefault();
-
-    const loadingSpinner = document.getElementById("loadingSpinner");
-    loadingSpinner.style.display = "block"; // Show spinner at the beginning
-
-    // Determine which button was clicked
-    const submitButton = event.submitter?.name;
-    if (!submitButton) {
-        loadingSpinner.style.display = "none"; // Hide spinner if no button detected
-        alert("Unknown submit button.");
-        return;
-    }
+    //event.preventDefault();
 
     // Get form elements
+    const inputType = document.getElementById('inputTypeSelector').value;
     const formElements = {
-        inputTypeSelector: document.getElementById('inputTypeSelector'),
-        starttime: document.getElementById("starttime"),
-        endtime: document.getElementById("endtime"),
-        type: document.getElementById("type"),
-        timeIndex: document.getElementById("timeIndex"),
-        requestIndex: document.getElementById("requestIndex"),
-        sepratorType: document.getElementById("sepratorType"),
+        startTime: document.getElementById("starttime").value,
+        endTime: document.getElementById("endtime").value,
+        logType: document.getElementById("type").value,
+        startIndex: document.getElementById("startIndex")?.value,
+        requestIndex: document.getElementById("indexRequest")?.value,
+        sepratorType: document.getElementById("sepratorType").value,
         fileInput: document.getElementById("fileInput"),
-        searchText: document.getElementById("searchText")
+        searchText: document.getElementById("searchText").value || " "
     };
-
-    // Get form values
-    const inputType = formElements.inputTypeSelector.value;
-    const formDataValues = {
-        startTime: formElements.starttime.value,
-        endTime: formElements.endtime.value,
-        logType: formElements.type.value,
-        timeIndex: formElements.timeIndex?.value || '0',
-        requestIndex: formElements.requestIndex?.value || '4',
-        sepratorType: formElements.sepratorType.value,
-        fileInput: formElements.fileInput,
-        searchText: formElements.searchText.value || " "
-    };
-
-    // Validate date range
-    const dateValidation = validateDateRange(formDataValues.startTime, formDataValues.endTime, inputType);
-    if (!dateValidation.valid) {
-        loadingSpinner.style.display = "none"; // Hide spinner after validation error
-        alert(dateValidation.message);
-        return;
-    }
-
-    // Validate indices
-    const indexValidation = validateIndices(formDataValues.timeIndex, formDataValues.requestIndex);
-    if (!indexValidation.valid) {
-        loadingSpinner.style.display = "none"; // Hide spinner after validation error
-        alert(indexValidation.message);
-        return;
-    }
 
     // Validate file input
-    if (!formDataValues.fileInput || formDataValues.fileInput.files.length === 0) {
-        loadingSpinner.style.display = "none"; // Hide spinner after validation error
+    if (!formElements.fileInput?.files?.length) {
         alert("Please select a log file.");
         return;
     }
 
-    // Create form data
-    const formData = new FormData();
-    formData.append("file", formDataValues.fileInput.files[0]);
-    formData.append("startTime", inputType === 'time' ? formDataValues.startTime.split('T')[1] : formDataValues.startTime);
-    formData.append("endTime", inputType === 'time' ? formDataValues.endTime.split('T')[1] : formDataValues.endTime);
-    formData.append("logType", formDataValues.logType);
-    formData.append("timeIndex", formDataValues.timeIndex);
-    formData.append("requestIndex", formDataValues.requestIndex);
-    formData.append("sepratorType", formDataValues.sepratorType);
-    formData.append("searchText", formDataValues.searchText);
+    const loadingSpinner = document.getElementById("loadingSpinner");
 
     try {
-        const response = await fetch("/fetch_logs", {
+        loadingSpinner.style.display = "block";
+
+        // Send metadata first
+        const metadata = new FormData();
+        metadata.append("startTime", inputType === 'time' ? 
+            formElements.startTime.split('T')[1] : formElements.startTime);
+        metadata.append("endTime", inputType === 'time' ? 
+            formElements.endTime.split('T')[1] : formElements.endTime);
+        metadata.append("logType", formElements.logType);
+        metadata.append("startIndex", formElements.startIndex);
+        metadata.append("indexRequest", formElements.requestIndex);
+        metadata.append("separatorType", formElements.sepratorType);
+        metadata.append("searchText", formElements.searchText);
+        metadata.append("step", "metadata");
+
+        const metadataResponse = await fetch("/fetch_logs", {
             method: "POST",
-            body: formData,
+            body: metadata,
         });
 
-        if (!response.ok) {
-            throw new Error(`Server error: ${response.status}`);
-        }
+        if (!metadataResponse.ok) throw new Error(`Server error: ${metadataResponse.status}`);
+        const sessionID = await metadataResponse.text();
 
-        const blob = await response.blob();
+        // Process file in chunks
+        await readFileInChunks(formElements.fileInput, async (chunk, offset, fileSize) => {
+            const formData = new FormData();
+            formData.append("fileChunk", new Blob([chunk]), formElements.fileInput.files[0].name);
+            formData.append("offset", offset);
+            formData.append("fileSize", fileSize);
+            formData.append("sessionID", sessionID);
+            formData.append("step", "chunk");
+
+            const response = await fetch("/fetch_logs", {
+                method: "POST",
+                body: formData,
+            });
+            if (!response.ok) throw new Error(`Chunk upload failed: ${response.status}`);
+        });
+
+        // Finalize processing
+        const finalResponse = await fetch("/fetch_logs", {
+            method: "POST",
+            body: new FormData([
+                ["sessionID", sessionID],
+                ["step", "finalize"]
+            ]),
+        });
+
+        if (!finalResponse.ok) throw new Error(`Finalization failed: ${finalResponse.status}`);
+        
+        // Handle response
+        const blob = await finalResponse.blob();
         const text = await blob.text();
-
-        // Check if the response contains an error message
         if (text.startsWith("No logs match")) {
-            loadingSpinner.style.display = "none"; // Hide spinner after error
             alert(text);
             return;
         }
 
-        // Determine which button was clicked
-        if (submitButton === 'processLogs') {
-            // Download logs as a file
-            const startFormatted = formatTime(formDataValues.startTime, inputType);
-            const endFormatted = formatTime(formDataValues.endTime, inputType);
-            const fileName = `log_${startFormatted}_${endFormatted}_${formDataValues.logType}.log`;
+        // Create download
+        const fileName = `logs_${formatTime(formElements.startTime, inputType)}_${formatTime(formElements.endTime, inputType)}.log`;
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
 
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-            link.download = fileName;
-            link.click();
-            URL.revokeObjectURL(link.href);
-
-            await readFile(formDataValues.fileInput);
-            alert("File processed and downloaded successfully!");
-        } else if (submitButton === 'tableLogs') {
-            // Show logs in a table
-            tableShow(text);
-        }
+        alert("File processed successfully!");
     } catch (error) {
-        loadingSpinner.style.display = "none"; // Hide spinner after error
-        alert(`Error processing logs: ${error.message}`);
+        alert(`Error: ${error.message}`);
     } finally {
-        loadingSpinner.style.display = "none"; // Hide spinner after completion
+        loadingSpinner.style.display = "none";
     }
 }
-
-
-
+*/
 
 // 🤝 This is helper function which is used to validate the date it should exceed the time limit or any other wrong time range
 
+/*
 function validateDateRange(startTime, endTime, inputType) {
     if (!startTime || !endTime) {
         return { valid: false, message: 'Please enter both start and end times.' };
@@ -575,11 +619,11 @@ function validateDateRange(startTime, endTime, inputType) {
 
     return { valid: true };
 }
-
+*/
 
 
 // 🤝 This is helper function to validate the indexing of form means if user inputs -1 then it should be accept that  
-
+/*
 function validateIndices(timeIndex, requestIndex) {
     if (timeIndex === '' && requestIndex === '') {
         return { valid: true }; // Both empty means use defaults
@@ -650,5 +694,437 @@ document.getElementById('type').addEventListener('change', function() {
 });
 	
 
+/*
 // This is event handler whenever the submit button is clicked the data is taken from html
-document.getElementById("logForm")?.addEventListener("submit", handleLogFormSubmit);
+document.getElementById("logForm")?.addEventListener("submit", function (event) {
+    event.preventDefault(); // Prevent the default form submission behavior
+
+    const clickedButtonId = event.submitter.id; // Get the ID of the button that triggered the form submission
+
+    if (clickedButtonId === "processLogs") {
+        handleLogFormSubmit();
+    } else if (clickedButtonId === "tableLogs") {
+        tableShow();
+    }
+});
+
+
+*/
+
+/*
+document.getElementById("logForm")?.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    // Get form values
+    const inputType = document.getElementById('inputTypeSelector').value;
+    const formElements = {
+        startTime: document.getElementById("starttime").value,
+        endTime: document.getElementById("endtime").value,
+        logType: document.getElementById("type").value,
+        startIndex: document.getElementById("startIndex")?.value, // Default to 1
+        requestIndex: document.getElementById("indexRequest")?.value, // Default to 4
+        sepratorType: document.getElementById("sepratorType").value,
+        fileInput: document.getElementById("fileInput"),
+        searchText: document.getElementById("searchText").value || " "
+    };
+
+    // Validate file input
+    if (!formElements.fileInput || formElements.fileInput.files.length === 0) {
+        alert("Please select a log file.");
+        return;
+    }
+
+    const loadingSpinner = document.getElementById("loadingSpinner");
+
+    try {
+        loadingSpinner.style.display = "block";
+
+        // Create a FormData object to send metadata
+        const metadata = new FormData();
+        metadata.append("startTime", inputType === 'time' ? formElements.startTime.split('T')[1] : formElements.startTime);
+        metadata.append("endTime", inputType === 'time' ? formElements.endTime.split('T')[1] : formElements.endTime);
+        metadata.append("logType", formElements.logType);
+        metadata.append("startIndex", formElements.startIndex); // Updated key to match server
+        metadata.append("indexRequest", formElements.requestIndex); // Updated key to match server
+        metadata.append("separatorType", formElements.sepratorType); // Corrected typo
+        metadata.append("searchText", formElements.searchText);
+        metadata.append("step", "metadata"); // Add step parameter
+
+        // Send metadata first
+        const metadataResponse = await fetch("/fetch_logs", {
+            method: "POST",
+            body: metadata,
+        });
+
+        if (!metadataResponse.ok) {
+            throw new Error(`Server error: ${metadataResponse.status}`);
+        }
+
+        // Get session ID from metadata response
+        const sessionID = await metadataResponse.text();
+
+        // Send file in chunks
+        await readFileInChunks(formElements.fileInput, async (chunk, offset, fileSize) => {
+            const formData = new FormData();
+            formData.append("fileChunk", new Blob([chunk]), formElements.fileInput.files[0].name);
+            formData.append("offset", offset.toString());
+            formData.append("fileSize", fileSize.toString());
+            formData.append("sessionID", sessionID); // Include session ID
+            formData.append("step", "chunk"); // Add step parameter
+
+            const response = await fetch("/fetch_logs", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        });
+
+        // Finalize processing
+        const finalFormData = new FormData();
+        finalFormData.append("sessionID", sessionID); // Include session ID
+        finalFormData.append("step", "finalize"); // Add step parameter
+
+        const finalResponse = await fetch("/fetch_logs", {
+            method: "POST",
+            body: finalFormData,
+        });
+
+        if (!finalResponse.ok) {
+            throw new Error(`Server error: ${finalResponse.status}`);
+        }
+
+        const blob = await finalResponse.blob();
+        const text = await blob.text();
+
+        // Check if the response contains an error message
+        if (text.startsWith("No logs match")) {
+            alert(text);
+            return;
+        }
+
+        // Create download link
+        const startFormatted = formatTime(formElements.startTime, inputType);
+        const endFormatted = formatTime(formElements.endTime, inputType);
+        const fileName = `log_${startFormatted}_${endFormatted}_${formElements.logType}.log`;
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        alert("File processed and downloaded successfully!");
+    } catch (error) {
+        alert(`Error processing logs: ${error.message}`);
+    } finally {
+        loadingSpinner.style.display = "none";
+    }
+});
+*/
+
+
+
+
+
+
+
+
+let fileContent = null;
+
+
+async function readFileInChunks(fileInput, onChunkRead, chunkSize = 10 * 1024 * 1024) {
+    return new Promise((resolve, reject) => {
+        if (!fileInput?.files?.length) return reject("No file selected");
+        const file = fileInput.files[0];
+        let offset = 0; // Tracks the byte offset in the file
+        let leftover = new Uint8Array(0); // Carries over bytes between chunks
+        const reader = new FileReader();
+        const decoder = new TextDecoder('utf-8');
+
+        reader.onload = async (e) => {
+            try {
+                const buffer = new Uint8Array(e.target.result);
+                // Combine leftover bytes with the new chunk
+                const combined = new Uint8Array(leftover.length + buffer.length);
+                combined.set(leftover);
+                combined.set(buffer, leftover.length);
+
+                let newlinePos = -1;
+                // Find the last newline (0x0A) to split lines correctly
+                for (let i = combined.length - 1; i >= 0; i--) {
+                    if (combined[i] === 0x0A) { // \n character
+                        newlinePos = i;
+                        break;
+                    }
+                }
+
+                let processedBytes, newLeftover;
+                if (newlinePos !== -1) {
+                    // Check for \r before \n to handle \r\n line endings
+                    const lineEnd = (newlinePos > 0 && combined[newlinePos - 1] === 0x0D) ? newlinePos - 1 : newlinePos;
+                    processedBytes = combined.subarray(0, newlinePos + 1);
+                    newLeftover = combined.subarray(newlinePos + 1);
+                } else {
+                    processedBytes = new Uint8Array(0);
+                    newLeftover = combined;
+                }
+
+                // Decode processed bytes including any previous partial characters
+                const processedString = decoder.decode(processedBytes, { stream: true });
+                if (processedString) {
+                    await onChunkRead(processedString, offset, file.size);
+                    offset += processedBytes.length; // Update offset by bytes processed
+                }
+
+                leftover = newLeftover;
+
+                // Check if all bytes have been read
+                if (offset + leftover.length >= file.size) {
+                    // Decode any remaining bytes
+                    const finalString = decoder.decode(leftover);
+                    if (finalString) {
+                        await onChunkRead(finalString, offset, file.size);
+                    }
+                    resolve();
+                } else {
+                    readNextChunk();
+                }
+            } catch (error) {
+                reject(error);
+            }
+        };
+
+        reader.onerror = () => reject("File read error");
+
+        function readNextChunk() {
+            const slice = file.slice(offset, offset + chunkSize);
+            reader.readAsArrayBuffer(slice);
+        }
+
+        readNextChunk();
+    });
+}
+
+document.getElementById("logForm")?.addEventListener("submit", async function (event) {
+    event.preventDefault();
+
+    // Get form values
+    const inputType = document.getElementById('inputTypeSelector').value;
+    const formElements = {
+        startTime: document.getElementById("starttime").value,
+        endTime: document.getElementById("endtime").value,
+        logType: document.getElementById("type").value,
+        startIndex: document.getElementById("startIndex")?.value, // Default to 1
+        requestIndex: document.getElementById("indexRequest")?.value, // Default to 4
+        sepratorType: document.getElementById("sepratorType").value,
+        fileInput: document.getElementById("fileInput"),
+        searchText: document.getElementById("searchText").value || " "
+    };
+
+    // Validate file input
+    if (!formElements.fileInput || formElements.fileInput.files.length === 0) {
+        alert("Please select a log file.");
+        return;
+    }
+
+    const loadingSpinner = document.getElementById("loadingSpinner");
+
+    try {
+        loadingSpinner.style.display = "block";
+
+        // Create a FormData object to send metadata
+        const metadata = new FormData();
+        metadata.append("startTime", inputType === 'time' ? formElements.startTime.split('T')[1] : formElements.startTime);
+        metadata.append("endTime", inputType === 'time' ? formElements.endTime.split('T')[1] : formElements.endTime);
+        metadata.append("logType", formElements.logType);
+        metadata.append("startIndex", formElements.startIndex); // Updated key to match server
+        metadata.append("indexRequest", formElements.requestIndex); // Updated key to match server
+        metadata.append("separatorType", formElements.sepratorType); // Corrected typo
+        metadata.append("searchText", formElements.searchText);
+        metadata.append("step", "metadata"); // Add step parameter
+
+        // Send metadata first
+        const metadataResponse = await fetch("/fetch_logs", {
+            method: "POST",
+            body: metadata,
+        });
+
+        if (!metadataResponse.ok) {
+            throw new Error(`Server error: ${metadataResponse.status}`);
+        }
+
+        // Get session ID from metadata response
+        const sessionID = await metadataResponse.text();
+
+        // Send file in chunks
+        await readFileInChunks(formElements.fileInput, async (chunk, offset, fileSize) => {
+            const formData = new FormData();
+            formData.append("fileChunk", new Blob([chunk]), formElements.fileInput.files[0].name);
+            formData.append("offset", offset.toString());
+            formData.append("fileSize", fileSize.toString());
+            formData.append("sessionID", sessionID); // Include session ID
+            formData.append("step", "chunk"); // Add step parameter
+
+            const response = await fetch("/fetch_logs", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (!response.ok) {
+                throw new Error(`Server error: ${response.status}`);
+            }
+        });
+
+        // Finalize processing
+        const finalFormData = new FormData();
+        finalFormData.append("sessionID", sessionID); // Include session ID
+        finalFormData.append("step", "finalize"); // Add step parameter
+
+        const finalResponse = await fetch("/fetch_logs", {
+            method: "POST",
+            body: finalFormData,
+        });
+
+        if (!finalResponse.ok) {
+            throw new Error(`Server error: ${finalResponse.status}`);
+        }
+
+        const blob = await finalResponse.blob();
+        const text = await blob.text();
+
+        // Check if the response contains an error message
+        if (text.startsWith("No logs match")) {
+            alert(text);
+            return;
+        }
+
+        // Create download link
+        const startFormatted = formatTime(formElements.startTime, inputType);
+        const endFormatted = formatTime(formElements.endTime, inputType);
+        const fileName = `log_${startFormatted}_${endFormatted}_${formElements.logType}.log`;
+
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+        link.download = fileName;
+        link.click();
+        URL.revokeObjectURL(link.href);
+
+        alert("File processed and downloaded successfully!");
+    } catch (error) {
+        alert(`Error processing logs: ${error.message}`);
+    } finally {
+        loadingSpinner.style.display = "none";
+    }
+});
+
+// Helper function to format time
+function formatTime(timeString, inputType) {
+    if (inputType === 'time') {
+        return timeString.split('T')[1].replace(/:/g, '-');
+    }
+    return timeString.replace(/:/g, '-').replace(/T/g, '_');
+}
+
+function validateIndices(timeIndex, requestIndex) {
+    if (timeIndex === '' && requestIndex === '') {
+        return { valid: true }; // Both empty means use defaults
+    }
+
+    const timeIdx = parseInt(timeIndex);
+    const reqIdx = parseInt(requestIndex);
+
+    if (timeIndex !== '' && isNaN(timeIdx) || timeIdx < 0) {
+        return { valid: false, message: 'Time index must be a non-negative number.' };
+    }
+
+    if (requestIndex !== '' && isNaN(reqIdx) || reqIdx < 0) {
+        return { valid: false, message: 'Request index must be a non-negative number.' };
+    }
+
+    return { valid: true };
+}
+
+function validateDateRange(startTime, endTime, inputType) {
+    if (!startTime || !endTime) {
+        return { valid: false, message: 'Please enter both start and end times.' };
+    }
+
+    if (inputType === 'time') {
+        // For time-only inputs, no need to validate dates
+        return { valid: true };
+    }
+
+    // For datetime inputs, validate the full date and time
+    const start = new Date(startTime);
+    const end = new Date(endTime);
+
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        return { valid: false, message: 'Please enter valid dates.' };
+    }
+
+    if (end < start) {
+        return { valid: false, message: 'End time must be after start time.' };
+    }
+
+    return { valid: true };
+}
+
+function formatTime(dateString, inputType) {
+    const date = new Date(dateString);
+    if (inputType === 'time') {
+        // Extract only the time portion
+        return `${String(date.getHours()).padStart(2, '0')}_${String(date.getMinutes()).padStart(2, '0')}_${String(date.getSeconds()).padStart(2, '0')}`;
+    } else {
+        // Include both date and time
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}_${String(date.getHours()).padStart(2, '0')}_${String(date.getMinutes()).padStart(2, '0')}_${String(date.getSeconds()).padStart(2, '0')}`;
+    }
+}
+
+
+// Handle input type changes
+document.getElementById('inputTypeSelector')?.addEventListener('change', function () {
+    const inputType = this.value;
+    const startTimeInput = document.querySelector('input[name="startTimeInput"]');
+    const endTimeInput = document.querySelector('input[name="endTimeInput"]');
+
+    if (!startTimeInput || !endTimeInput) return;
+
+    if (inputType === 'time') {
+        startTimeInput.type = 'time';
+        endTimeInput.type = 'time';
+    } else {
+        startTimeInput.type = 'datetime-local';
+        endTimeInput.type = 'datetime-local';
+    }
+
+    startTimeInput.step = '1';
+    endTimeInput.step = '1';
+});
+
+$(document).ready(function() {
+    $('#type').select2({
+        placeholder: 'Select Log Type',
+        allowClear: true
+    });
+
+    $('#type').on('change', function() {
+        const customContainer = $('#customLogTypeContainer');
+        if ($(this).val() === 'custom') {
+            customContainer.show();
+        } else {
+            customContainer.hide();
+        }
+    });
+});
+
+document.getElementById('type').addEventListener('change', function() {
+    const customLogTypeContainer = document.getElementById('customLogTypeContainer');
+    if (this.value === 'custom') {
+        customLogTypeContainer.style.display = 'block';
+    } else {
+        customLogTypeContainer.style.display = 'none';
+    }
+});
