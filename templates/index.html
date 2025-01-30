@@ -4,22 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Log File Viewer</title>
-    
+
+    <!-- AG Grid Theming API (v33+) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ag-grid-community/styles/ag-theme-quartz.css">
+
+    <!-- Other Styles & Scripts -->
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='log_file_icon.png') }}">
     <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='index.css') }}">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
 
-    <style>
-        .export-button {
-            margin-top: 20px;
-        }
-    </style>
+    <!-- AG Grid JS (Updated) -->
+    <script src="https://cdn.jsdelivr.net/npm/ag-grid-community/dist/ag-grid-community.min.js"></script>
 </head>
 <body>
-    <h1>Log File Viewer</h1>
+    <div style="text-align: center; margin: 20px;">
+        <img src="{{ url_for('static', filename='Log_file_view.png') }}" 
+             alt="Log File Viewer" 
+             style="width: 10%; height: 10%;">
+    </div>
 
     <form id="logForm">
         <div class="container">
@@ -45,7 +50,7 @@
                 <input type="file" id="fileInput" accept=".log,.txt,.csv">
             
                 <label for="sepratorType">Separator Type :</label>
-                <input id="sepratorType" name="sepratorType" type="text" class="small-input"  required>
+                <input id="sepratorType" name="sepratorType" type="text" class="small-input" required>
             </div>
         </div>
 
@@ -58,28 +63,37 @@
                 <option value="RES3">RES3</option>
                 <option value="DECRYPT_REQ1">DECRYPT_REQ1</option>
                 <option value="ENCRYPT_RES1">ENCRYPT_RES1</option>
-                <option value="all">All - Include all log types</option>
+                <option value="all">All</option>
                 <option value="custom">Custom - Enter your own log type</option>
             </select>
-            <label for="indexRequest">Index of Request : </label>
+            <label for="indexRequest">Index of Request:</label>
             <input id="indexRequest" name="indexRequest" type="text" class="small-input" required>
         </div>
 
-            <label for="searchText">Search Text From Log : </label>
-            <input id="searchText" name="searchText" type="text">
+        <label for="searchText">Search Text From Log:</label>
+        <input id="searchText" name="searchText" type="text">
 
-            <div id="customLogTypeContainer" style="display: none;">
-                <label for="customLogType">Enter Custom Log Type:</label>
-                <input type="text" id="customLogType" name="customLogType" placeholder="Enter custom log type">
+        <div id="customLogTypeContainer" style="display: none;">
+            <label for="customLogType">Enter Custom Log Type:</label>
+            <input type="text" id="customLogType" name="customLogType" placeholder="Enter custom log type">
         </div>
 
-        <button type="submit" id="processLogs" class="export-button" aria-label="Process Logs">Process Logs</button>
+        <div class="button-row">
+            <button type="submit" id="processLogs" name="processLogs" class="export-button" aria-label="Process Logs">Download Logs</button>
+            <button type="submit" id="tableLogs" name="tableLogs" class="export-button" aria-label="Table Logs">Show Logs</button>
+        </div>
     </form>
 
     <div class="spinner-container">
         <div class="spinner" id="loadingSpinner" style="display:none;"></div>
     </div>
 
+    <div id="gridContainer" class="ag-theme-quartz" style="width: 100%; height: 500px;"></div>
+
+    <!-- AG Grid Container -->
+    
+
+    <!-- Custom JS -->
     <script src="{{ url_for('static', filename='index.js') }}"></script>
 </body>
 </html>

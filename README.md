@@ -20,8 +20,8 @@ my_flask_app/
 │   ├── templates/
 │   │   ├── index.html
 │   │   └── base.html
-    ├── Controller/
-    │   ├── __init__.py
+│   ├── Controller/
+│   │   ├── __init__.py
 │   │   └── fetch_logs_controller.py
 │   └── static/
 │       ├── css/
@@ -30,6 +30,8 @@ my_flask_app/
 ├── migrations/
 ├── instance/
 ├── venv/
+├── dist/
+├── build/
 ├── app.py
 ├── wsgi.py
 ├── requirements.txt

@@ -1,11 +1,7 @@
-import os
 import re
 import logging
-import tempfile
-import uuid
 import threading
 from datetime import datetime
-from flask import request, Response
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +52,19 @@ class LogExtractor:
         logger.debug(f"Failed to normalize timestamp '{timestamp_str}'")
         return None
 
+    def _validate_metadata(self, parts, start_index, separator_type, index_request):
+        """Validate metadata format requirements"""
+        if not parts:
+            return False
+            
+        if start_index is not None and (start_index < -len(parts) or start_index >= len(parts)):
+            return False
+            
+        if index_request is not None and (index_request < -len(parts) or index_request >= len(parts)):
+            return False
+            
+        return True
+
     def _extract_data(self, line, start_dt=None, end_dt=None, log_type=None, start_index=None, separator_type=None, index_request=None, search_Text=None):
         try:
             if not line.strip():
@@ -64,68 +73,73 @@ class LogExtractor:
 
             # Split the line using the separator
             parts = re.split(re.escape(separator_type), line.strip()) if separator_type else [line.strip()]
-            logger.debug(f"Split parts: {parts}")
-
-            # Validate parts
-            if not parts:
-                logger.debug(f"Skipping malformed line: {line.strip()} (No parts found)")
-                return None, True
-
-            # Extract timestamp using start_index
-            timestamp_str = None
-            if start_index is not None:
-                if -len(parts) <= start_index < len(parts):
+            
+            is_all_type = log_type and log_type.lower() == "all"
+            
+            # For "all" log type, we only validate time range if we can extract a timestamp
+            if is_all_type:
+                timestamp_str = None
+                if start_index is not None and -len(parts) <= start_index < len(parts):
                     timestamp_str = parts[start_index]
-                else:
-                    logger.debug(f"Invalid start_index: {start_index} for line: {line.strip()}")
+                    
+                if timestamp_str:
+                    normalized_timestamp = self.normalize_timestamp(timestamp_str)
+                    if normalized_timestamp:
+                        # Check time range only if we have a valid timestamp
+                        if start_dt:
+                            start_dt_norm = self.normalize_timestamp(start_dt)
+                            if start_dt_norm and normalized_timestamp < start_dt_norm:
+                                return None, True
+                        if end_dt:
+                            end_dt_norm = self.normalize_timestamp(end_dt)
+                            if end_dt_norm and normalized_timestamp > end_dt_norm:
+                                return None, False
+
+                # For "all" type, include the line if it passes time range check or has no valid timestamp
+                if search_Text and search_Text not in line:
                     return None, True
+                    
+                return (line if line.endswith('\n') else line + '\n'), True
+                
             else:
-                logger.debug("No start_index provided.")
-                return None, True
-
-            if not timestamp_str:
-                logger.debug(f"No valid timestamp found in line: {line.strip()}")
-                return None, True
-
-            normalized_timestamp = self.normalize_timestamp(timestamp_str)
-            if not normalized_timestamp:
-                logger.debug(f"Invalid timestamp format in line: {line.strip()}")
-                return None, True
-
-            # Convert start_dt and end_dt to normalized format
-            if start_dt:
-                start_dt = self.normalize_timestamp(start_dt)
-            if end_dt:
-                end_dt = self.normalize_timestamp(end_dt)
-
-            # Check timestamp range
-            if start_dt and normalized_timestamp < start_dt:
-                logger.debug(f"Skipping line: timestamp {normalized_timestamp} before start_dt {start_dt}")
-                return None, True
-            if end_dt and normalized_timestamp > end_dt:
-                logger.debug(f"Stopping processing: timestamp {normalized_timestamp} after end_dt {end_dt}")
-                return None, False  # Stop processing
-
-            # Check log type using index_request
-            if log_type and log_type.lower() != "all":
-                if index_request is not None:
-                    if -len(parts) <= index_request < len(parts):
-                        if parts[index_request].strip() != log_type:
-                            logger.debug(f"Log type '{log_type}' not matched.")
-                            return None, True
-                    else:
-                        logger.debug(f"Invalid index_request: {index_request} for line: {line.strip()}")
-                        return None, True
-                else:
-                    logger.debug("No index_request provided.")
+                # For specific log types, validate all metadata requirements
+                if not self._validate_metadata(parts, start_index, separator_type, index_request):
+                    logger.debug("Failed metadata validation")
                     return None, True
 
-            # Check search text
-            if search_Text and search_Text not in line:
-                logger.debug(f"Search text '{search_Text}' not found in line.")
-                return None, True
+                # Extract timestamp
+                timestamp_str = parts[start_index] if start_index is not None else None
+                if not timestamp_str:
+                    logger.debug(f"No valid timestamp found in line: {line.strip()}")
+                    return None, True
 
-            return (line if line.endswith('\n') else line + '\n'), True
+                normalized_timestamp = self.normalize_timestamp(timestamp_str)
+                if not normalized_timestamp:
+                    logger.debug(f"Invalid timestamp format in line: {line.strip()}")
+                    return None, True
+
+                # Check time range
+                if start_dt:
+                    start_dt_norm = self.normalize_timestamp(start_dt)
+                    if start_dt_norm and normalized_timestamp < start_dt_norm:
+                        return None, True
+                if end_dt:
+                    end_dt_norm = self.normalize_timestamp(end_dt)
+                    if end_dt_norm and normalized_timestamp > end_dt_norm:
+                        return None, False
+
+                # Check log type
+                if index_request is not None:
+                    if parts[index_request].strip() != log_type:
+                        logger.debug(f"Log type '{log_type}' not matched.")
+                        return None, True
+
+                # Check search text
+                if search_Text and search_Text not in line:
+                    logger.debug(f"Search text '{search_Text}' not found in line.")
+                    return None, True
+
+                return (line if line.endswith('\n') else line + '\n'), True
 
         except Exception as e:
             logger.error(f"Error processing line: {line.strip()}", exc_info=True)
@@ -163,13 +177,15 @@ class OptimizedLogExtractor(LogExtractor):
                         filtered_line, continue_processing = self._extract_data(
                             line, start_dt, end_dt, log_type, start_index, separator_type, index_request, search_Text
                         )
+                        
                         if filtered_line:
                             outfile.write(filtered_line)
+                        
                         if not continue_processing:
-                            break  # Exit the loop if timestamp exceeds end_dt
+                            break
 
                     if not continue_processing:
-                        break  # Exit the chunk reading loop
+                        break
 
             logger.info("Processing complete.")
 
