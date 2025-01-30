@@ -28,6 +28,17 @@ form {
     background-color: #00377B; /* Fallback for non-supporting browsers */
 }
 
+.row-container {
+    display: flex;
+    justify-content: space-between; /* Moves row count to the right */
+    align-items: center;
+    width: 100%;
+}
+.row-count {
+    margin-left: auto; /* Pushes it to the right */
+}
+
+
 .row {
     display: flex;
     align-items: center;
@@ -133,4 +144,16 @@ button:hover {
 .toolbar input {
     border-radius: 4px;
     border: 1px solid #ccc;
+}
+
+.content-hidden {
+    max-height: 100%; /* Limit the height */
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.content-hidden:hover {
+    max-height: none; /* Allow full content on hover */
+    white-space: normal;
 }
